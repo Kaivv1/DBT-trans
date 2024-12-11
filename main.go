@@ -1,15 +1,13 @@
 package main
 
 import (
-	// "fmt"
 	"fmt"
+	excel "github.com/xuri/excelize/v2"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-
-	excel "github.com/xuri/excelize/v2"
 )
 
 func main() {
@@ -20,9 +18,10 @@ func main() {
 	}
 	parentDir := filepath.Dir(currDir)
 	filename := "DBT_s_imeili.xlsx"
+
 	var filePath string
 
-	err = filepath.Walk(parentDir, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.Walk(currDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -35,7 +34,7 @@ func main() {
 		return nil
 	})
 	if err != nil {
-		log.Printf("Error walking path: %s\n", parentDir)
+		log.Printf("Error walking path: %s\n", currDir)
 		return
 	}
 	excelFile, err := excel.OpenFile(filePath)
