@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	excel "github.com/xuri/excelize/v2"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+
+	excel "github.com/xuri/excelize/v2"
 )
 
 func main() {
@@ -92,6 +94,20 @@ func main() {
 
 	log.Println("ДБТ-имейли.txt created")
 
+	cityFolderCh := make(chan string)
+	var wg sync.WaitGroup
+
+	go func() {
+		for cityFolderPath := range cityFolderCh {
+			folder := filepath.Base(cityFolderPath)
+			if err = os.Mkdir(cityFolderPath, os.ModePerm); err != nil {
+				log.Printf("Error creating: %s", folder)
+			} else {
+				log.Printf("Folder: %s created", folder)
+			}
+		}
+	}()
+
 	for _, row := range rows {
 		DBT := row[1]
 		email := row[2]
@@ -99,27 +115,28 @@ func main() {
 		if DBT == "" || email == "" {
 			continue
 		}
+		wg.Add(1)
 
-		if email != "" {
-			_, err := emailsFile.Write([]byte(fmt.Sprintf("%s - %s\n", DBT, email)))
-			if err != nil {
-				log.Printf("Error while adding email: %s for DBT: %s\n", email, DBT)
-			} else {
-				// log.Printf("Email: %s for %s is added in %s\n", email, DBT, emailsFileName)
+		go func(DBT, email string) {
+			defer wg.Done()
+
+			if email != "" {
+				_, err := emailsFile.Write([]byte(fmt.Sprintf("%s - %s\n", DBT, email)))
+				if err != nil {
+					log.Printf("Error while adding email: %s for DBT: %s\n", email, DBT)
+				}
+
+				slice1 := strings.Split(email, "-")
+				slice2 := strings.Split(slice1[1], "@")
+				num := slice2[0]
+				cityDBTPath := filepath.Join(DBT_FOLDER, fmt.Sprintf("%s-%s", num, DBT))
+				cityFolderCh <- cityDBTPath
 			}
-		}
-		slice1 := strings.Split(email, "-")
-		slice2 := strings.Split(slice1[1], "@")
-		num := slice2[0]
-
-		cityDBTPath := filepath.Join(DBT_FOLDER, fmt.Sprintf("%s-%s", num, DBT))
-		err = os.Mkdir(cityDBTPath, os.ModePerm)
-		folder := filepath.Base(cityDBTPath)
-		if err != nil {
-			log.Printf("Error creating: %s", folder)
-		}
-		log.Printf("Folder: %s created", folder)
+		}(DBT, email)
 	}
+	wg.Wait()
+	close(cityFolderCh)
+
 	AZ_Folder_Path := filepath.Join(DBT_FOLDER, "AZ")
 	err = os.Mkdir(AZ_Folder_Path, os.ModePerm)
 	if err != nil {
